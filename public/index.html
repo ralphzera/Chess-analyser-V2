@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChessCoach Pro — Analisador MultiPV, Academia de Treino &amp; Desenvolvimento</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="vendor/chess.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">♟️</div>
+        <div>
+          <h1>ChessCoach<span>Pro</span></h1>
+          <p>Analisador &amp; Academia v2</p>
+        </div>
+      </div>
+
+      <!-- Multi-Profile Selector & Card -->
+      <div class="profile-card" id="sidebar-profile-card">
+        <div class="profile-top">
+          <img id="profile-avatar" class="profile-avatar" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' rx='8' fill='%231e293b'/><text x='50%' y='58%' dominant-baseline='middle' text-anchor='middle' font-size='20'>👤</text></svg>" alt="Avatar" />
+          <div class="profile-meta">
+            <strong id="profile-username-label">Conta não vinculada</strong>
+            <span id="profile-ratings-label" class="profile-ratings-sub">Crie seu perfil</span>
+          </div>
+        </div>
+        <div class="profile-switcher-row">
+          <select id="profile-select" title="Trocar perfil local"></select>
+          <button class="ctrl-btn small-icon-btn" id="btn-new-profile" title="Adicionar ou trocar conta">➕</button>
+        </div>
+        <div class="profile-actions">
+          <button class="btn-primary small" id="btn-sidebar-sync" style="width: 100%; padding: 0.38rem 0.6rem; font-size: 0.78rem;">🔗 Vincular Conta</button>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-btn active" data-tab="tab-analysis">
+          <span class="nav-icon">🔍</span>
+          <span>Análise &amp; Sandbox</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-import">
+          <span class="nav-icon">📥</span>
+          <span>Importar &amp; Partidas</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-trainer">
+          <span class="nav-icon">🎯</span>
+          <span>Academia &amp; Treinos</span>
+          <span id="badge-puzzles" class="nav-badge">0</span>
+        </button>
+        <button class="nav-btn" data-tab="tab-dashboard">
+          <span class="nav-icon">📊</span>
+          <span>Desenvolvimento</span>
+        </button>
+      </nav>
+
+      <div class="engine-status-card">
+        <div class="engine-row">
+          <span class="status-dot" id="engine-dot"></span>
+          <strong id="engine-name">Iniciando Stockfish...</strong>
+        </div>
+        <div class="engine-sub" id="engine-sub">Carregando MultiPV &amp; Hash</div>
+        <div class="depth-control">
+          <label for="engine-depth">Profundidade da Análise:</label>
+          <select id="engine-depth">
+            <option value="10">Rápida (Depth 10)</option>
+            <option value="12" selected>Precisa (Depth 12 - Recomendado)</option>
+            <option value="14">Profunda (Depth 14 - Mais Lenta)</option>
+          </select>
+        </div>
+        <div class="depth-control" style="margin-top: 0.6rem;">
+          <label for="board-size-slider">Tabuleiro: <span id="board-size-label">360px</span></label>
+          <input type="range" id="board-size-slider" min="260" max="520" value="360" step="10" style="width: 100%; accent-color: var(--accent); cursor: pointer;" />
+        </div>
+        <div style="margin-top: 0.55rem; display: flex; justify-content: space-between; align-items: center;">
+          <button class="ctrl-btn" id="btn-toggle-sound" style="width: 100%; padding: 0.3rem; font-size: 0.74rem;">🔊 Som: ON</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- TAB 1: TABULEIRO DE ANÁLISE & SANDBOX -->
+      <section id="tab-analysis" class="tab-panel active">
+        <div class="analysis-layout">
+          <div class="board-section">
+            <div class="player-bar top-player">
+              <div class="player-info">
+                <span class="player-avatar" id="top-player-color">⬛</span>
+                <div>
+                  <div class="player-name" id="top-player-name">Adversário</div>
+                  <div class="player-rating" id="top-player-rating">Rating: —</div>
+                </div>
+              </div>
+              <div class="player-accuracy" id="top-player-acc">—%</div>
+            </div>
+
+            <div id="sandbox-banner" class="sandbox-banner hidden">
+              <span id="sandbox-moves-text">🔀 Explorando variação</span>
+              <button class="btn-secondary small" id="btn-exit-sandbox">↩️ Voltar à Partida</button>
+            </div>
+
+            <div class="board-wrapper">
+              <div class="eval-bar-container" title="Avaliação do Stockfish">
+                <div class="eval-bar-black" id="eval-bar-black"></div>
+                <div class="eval-bar-white" id="eval-bar-white" style="height: 50%;"></div>
+                <span class="eval-score" id="eval-score-label">0.0</span>
+              </div>
+
+              <div class="chessboard-frame">
+                <div id="chessboard" class="chessboard"></div>
+                <svg id="board-overlay" class="board-overlay" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+              </div>
+            </div>
+
+            <div class="player-bar bottom-player">
+              <div class="player-info">
+                <span class="player-avatar" id="bottom-player-color">⬜</span>
+                <div>
+                  <div class="player-name" id="bottom-player-name">Você</div>
+                  <div class="player-rating" id="bottom-player-rating">Rating: —</div>
+                </div>
+              </div>
+              <div class="player-accuracy" id="bottom-player-acc">—%</div>
+            </div>
+
+            <div class="board-controls">
+              <button class="ctrl-btn" id="btn-flip" title="Girar Tabuleiro (F)">🔄</button>
+              <div class="move-nav-group">
+                <button class="ctrl-btn" id="btn-first" title="Início (Seta Acima)">⏮</button>
+                <button class="ctrl-btn" id="btn-prev" title="Anterior (Seta Esquerda)">◀</button>
+                <button class="ctrl-btn" id="btn-next" title="Próximo (Seta Direita)">▶</button>
+                <button class="ctrl-btn" id="btn-last" title="Fim (Seta Abaixo)">⏭</button>
+              </div>
+              <button class="ctrl-btn accent" id="btn-next-mistake" title="Ir para próximo erro seu">⚠️ Erro</button>
+              <button class="ctrl-btn" id="btn-toggle-live-engine" title="Ativar linhas MultiPV em tempo real">⚡ Motor Ao Vivo</button>
+              <button class="ctrl-btn" id="btn-share-game" title="Gerar Card PNG &amp; PGN comentado">📤 Compartilhar</button>
+            </div>
+          </div>
+
+          <!-- Right Analysis Sidebar -->
+          <div class="analysis-sidebar">
+            <div id="analysis-progress-box" class="progress-box hidden">
+              <div class="progress-header">
+                <span id="progress-title">Analisando partida...</span>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                  <span id="progress-pct">0%</span>
+                  <button class="btn-link" id="btn-cancel-analysis" style="color:#f87171;">⏹️ Parar</button>
+                </div>
+              </div>
+              <div class="progress-track">
+                <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+
+            <!-- Live MultiPV 3 Panel -->
+            <div id="live-multipv-card" class="panel-card hidden">
+              <div class="panel-card-header">
+                <span>🧠 Top 3 Linhas do Stockfish (MultiPV)</span>
+                <span class="muted-text" style="font-size:0.72rem;">Clique numa linha para jogar</span>
+              </div>
+              <div id="live-multipv-list" class="multipv-list"></div>
+            </div>
+
+            <!-- Coach Explanation Card -->
+            <div class="coach-card" id="coach-card">
+              <div class="coach-header">
+                <div class="coach-badge" id="coach-badge">♟️</div>
+                <div>
+                  <h3 id="coach-title">Bem-vindo ao ChessCoach Pro</h3>
+                  <p class="coach-subtitle" id="coach-subtitle">Analise partidas do Chess.com, Lichess ou PGN</p>
+                </div>
+              </div>
+              <div class="coach-body" id="coach-body">
+                Mova peças livremente no tabuleiro ao lado para explorar com o Sandbox ou importe suas partidas na aba <strong>📥 Importar &amp; Partidas</strong>.
+              </div>
+              <div class="coach-actions" id="coach-actions">
+                <button class="btn-secondary small hidden" id="btn-play-best-line">▶️ Ver Linha</button>
+                <button class="btn-primary small hidden" id="btn-train-this-pos">🎯 Treinar Erro</button>
+                <button class="btn-secondary small hidden" id="btn-sparring-from-pos">🤖 Jogar Daqui</button>
+              </div>
+            </div>
+
+            <!-- Evaluation Graph -->
+            <div class="panel-card">
+              <div class="panel-card-header">
+                <span>📈 Gráfico de Avaliação</span>
+                <span id="game-opening-label" class="opening-pill">Abertura</span>
+              </div>
+              <div class="eval-chart-container">
+                <canvas id="eval-chart" width="500" height="100"></canvas>
+              </div>
+            </div>
+
+            <!-- Holistic Game Review -->
+            <div class="panel-card" id="holistic-review-card">
+              <div class="panel-card-header">
+                <span>🩺 Diagnóstico da Partida</span>
+                <span id="review-phase-badge" class="opening-pill">Análise Completa</span>
+              </div>
+              <div id="holistic-review-body" class="holistic-review-body">
+                Selecione ou analise uma partida para ver precisão por fase, erros apressados e temas táticos.
+              </div>
+            </div>
+
+            <!-- Move List & Classification Counters -->
+            <div class="panel-card">
+              <div class="panel-card-header">
+                <span>📋 Lances &amp; Classificação</span>
+                <button class="btn-link" id="btn-reanalyze">⚡ Reanalisar</button>
+              </div>
+              <div class="summary-counters" id="summary-counters">
+                <div class="counter-chip brilliant" title="Brilhantes">!! <span id="cnt-brilliant">0</span></div>
+                <div class="counter-chip great" title="Grandes Lances">! <span id="cnt-great">0</span></div>
+                <div class="counter-chip best" title="Melhores">★ <span id="cnt-best">0</span></div>
+                <div class="counter-chip excellent" title="Excelentes">👍 <span id="cnt-excellent">0</span></div>
+                <div class="counter-chip good" title="Bons / Livro">✓ <span id="cnt-good">0</span></div>
+                <div class="counter-chip inaccuracy" title="Imprecisões">?! <span id="cnt-inaccuracy">0</span></div>
+                <div class="counter-chip mistake" title="Erros / Vitórias Perdidas">? <span id="cnt-mistake">0</span></div>
+                <div class="counter-chip blunder" title="Capivaras">?? <span id="cnt-blunder">0</span></div>
+              </div>
+              <div class="moves-list-wrapper" id="moves-list-wrapper">
+                <table class="moves-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Brancas</th>
+                      <th>Pretas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="moves-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: IMPORTAR CONTAS, PGN & DEMOS -->
+      <section id="tab-import" class="tab-panel">
+        <div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+          <div>
+            <h2>📥 Importar Partidas (Chess.com, Lichess &amp; PGN)</h2>
+            <p>Conecte sua conta, importe arquivos PGN ou teste imediatamente com nossas Partidas Demo.</p>
+          </div>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button class="btn-secondary small" id="btn-load-demos">✨ Carregar Partidas Demo</button>
+            <button class="btn-secondary small" id="btn-export-backup">💾 Exportar Backup</button>
+            <label class="btn-secondary small" style="cursor:pointer;">
+              📂 Restaurar Backup
+              <input type="file" id="backup-file-input" accept=".json" style="display:none;" />
+            </label>
+          </div>
+        </div>
+
+        <div class="import-grid">
+          <div class="panel-card">
+            <h3>🌐 Buscar Conta Online</h3>
+            <div class="search-bar-row">
+              <select id="import-platform">
+                <option value="chesscom">Chess.com</option>
+                <option value="lichess">Lichess.org</option>
+              </select>
+              <input type="text" id="chesscom-username" placeholder="Nome de usuário..." />
+              <select id="chesscom-timeclass">
+                <option value="all">Todos os ritmos</option>
+                <option value="rapid">Rapid</option>
+                <option value="blitz">Blitz</option>
+                <option value="bullet">Bullet</option>
+                <option value="daily">Diárias</option>
+              </select>
+              <button class="btn-primary" id="btn-fetch-games">Buscar</button>
+            </div>
+            <div id="fetch-status" class="status-msg"></div>
+
+            <div class="batch-bar hidden" id="batch-bar">
+              <span id="games-found-count">0 partidas</span>
+              <div style="display:flex; gap:0.4rem;">
+                <button class="btn-secondary small" id="btn-batch-analyze">⚡ Analisar 5</button>
+                <button class="btn-secondary small" id="btn-batch-analyze-10">🚀 Analisar 10</button>
+              </div>
+            </div>
+
+            <div class="games-list" id="chesscom-games-list"></div>
+          </div>
+
+          <div class="panel-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.5rem; flex-wrap:wrap;">
+              <h3>🗂️ Biblioteca Analisada (<span id="saved-games-count">0</span>)</h3>
+              <button class="btn-link" id="btn-clear-history" style="color:#f87171;">🗑️ Limpar Perfil</button>
+            </div>
+            <input type="text" id="saved-games-search" placeholder="Filtrar por adversário ou abertura..." style="width:100%; margin-bottom:0.55rem;" />
+            <div class="games-list compact" id="saved-games-list"></div>
+
+            <hr class="divider" />
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h3>📝 Colar PGN ou Importar Arquivo</h3>
+              <label class="btn-link" style="cursor:pointer;">
+                📁 Selecionar .pgn
+                <input type="file" id="pgn-file-input" accept=".pgn,.txt" style="display:none;" />
+              </label>
+            </div>
+            <textarea id="pgn-input" rows="4" placeholder='[Event "Live Chess"]&#10;[White "SeuNome"]&#10;[Black "Adversario"]&#10;1. e4 e5 ...'></textarea>
+            <div class="row-actions">
+              <input type="text" id="pgn-hero-name" placeholder="Seu nome no PGN (opcional)" />
+              <button class="btn-primary" id="btn-analyze-pgn">🔍 Analisar PGN</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: ACADEMIA & TREINOS -->
+      <section id="tab-trainer" class="tab-panel">
+        <div class="academy-subtabs">
+          <button class="academy-subtab-btn active" data-subtab="mistakes">🎯 Treino dos Meus Erros (SRS)</button>
+          <button class="academy-subtab-btn" data-subtab="openings">📚 Repertório de Aberturas</button>
+          <button class="academy-subtab-btn" data-subtab="drills">♟️ Finais &amp; Táticas Guiadas</button>
+          <button class="academy-subtab-btn" data-subtab="sparring">🤖 Sparring vs Coach</button>
+        </div>
+
+        <!-- SUB-TAB A: MISTAKE TRAINER (SRS) -->
+        <div id="academy-mistakes" class="academy-panel active">
+          <div class="analysis-layout">
+            <div class="board-section">
+              <div class="player-bar top-player">
+                <div class="player-info">
+                  <span class="player-avatar">🎯</span>
+                  <div>
+                    <div class="player-name" id="puzzle-opponent-label">Modo Treino de Erros</div>
+                    <div class="player-rating" id="puzzle-phase-label">Fase: — | Abertura: —</div>
+                  </div>
+                </div>
+                <div class="puzzle-Class-pill" id="puzzle-severity-pill">?? Capivara</div>
+              </div>
+
+              <div class="board-wrapper">
+                <div class="chessboard-frame">
+                  <div id="trainer-board" class="chessboard"></div>
+                  <svg id="trainer-overlay" class="board-overlay" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+                </div>
+              </div>
+
+              <div class="board-controls">
+                <button class="ctrl-btn" id="btn-puzzle-prev">◀ Anterior</button>
+                <button class="ctrl-btn" id="btn-puzzle-hint">💡 Dica</button>
+                <button class="ctrl-btn" id="btn-puzzle-solution">👁️ Solução</button>
+                <button class="ctrl-btn" id="btn-puzzle-open-game">🔍 Ver na Partida</button>
+                <button class="ctrl-btn accent" id="btn-puzzle-next">Próximo ▶</button>
+              </div>
+            </div>
+
+            <div class="analysis-sidebar">
+              <div class="coach-card" id="trainer-feedback-card">
+                <div class="coach-header">
+                  <div class="coach-badge" id="trainer-badge">🎯</div>
+                  <div>
+                    <h3 id="trainer-title">Encontre o Melhor Lance!</h3>
+                    <p class="coach-subtitle" id="trainer-subtitle">Arraste ou clique na peça no tabuleiro</p>
+                  </div>
+                </div>
+                <div class="coach-body" id="trainer-body">
+                  Selecione um exercício abaixo para corrigir seus erros com repetição espaçada (SRS).
+                </div>
+              </div>
+
+              <div class="panel-card">
+                <div class="panel-card-header" style="flex-wrap:wrap; gap:0.5rem;">
+                  <span>🎯 Filtros &amp; Temas Táticos</span>
+                  <select id="puzzle-theme-filter" style="padding:0.25rem 0.45rem; font-size:0.75rem;">
+                    <option value="all">Todos os Temas</option>
+                    <option value="peca_pendurada">Peça Pendurada</option>
+                    <option value="garfo">Garfo / Ataque Duplo</option>
+                    <option value="captura_perdida">Captura Perdida</option>
+                    <option value="mate_perdido">Mate Perdido</option>
+                    <option value="mate_permitido">Mate Permitido</option>
+                    <option value="vitoria_perdida">Vitória Perdida</option>
+                    <option value="seguranca_rei">Segurança do Rei</option>
+                    <option value="lance_apressado">Erro Apressado (&lt;3.5s)</option>
+                  </select>
+                </div>
+                <div class="filter-pills" style="margin-bottom:0.6rem; flex-wrap:wrap;">
+                  <button class="filter-pill active" data-filter="all">Todos</button>
+                  <button class="filter-pill" data-filter="due">Revisão Hoje (SRS)</button>
+                  <button class="filter-pill" data-filter="blunder">Capivaras (??)</button>
+                  <button class="filter-pill" data-filter="miss">Vitórias Perdidas</button>
+                  <button class="filter-pill" data-filter="mistake">Erros (?)</button>
+                  <button class="filter-pill" data-filter="pending">Pendentes</button>
+                </div>
+                <div class="puzzles-list" id="puzzles-list"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB B: OPENING REPERTOIRE TRAINER -->
+        <div id="academy-openings" class="academy-panel">
+          <div class="analysis-layout">
+            <div class="board-section">
+              <div class="board-wrapper">
+                <div class="chessboard-frame">
+                  <div id="opening-board" class="chessboard"></div>
+                  <svg id="opening-overlay" class="board-overlay" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+                </div>
+              </div>
+              <div class="board-controls">
+                <button class="ctrl-btn" id="btn-opening-restart">🔄 Reiniciar Linha</button>
+                <button class="ctrl-btn accent" id="btn-opening-hint">💡 Mostrar Próximo Lance</button>
+              </div>
+            </div>
+            <div class="analysis-sidebar">
+              <div class="panel-card">
+                <h3>📚 Treinador de Repertório ECO</h3>
+                <p class="muted-text" style="margin:0.35rem 0 0.65rem;">Escolha uma abertura para praticar os lances teóricos principais de memória:</p>
+                <select id="opening-drill-select" style="width:100%;"></select>
+              </div>
+              <div class="coach-card">
+                <div class="coach-header">
+                  <div class="coach-badge">📖</div>
+                  <div>
+                    <h3 id="opening-trainer-title">Selecione uma abertura</h3>
+                    <p class="coach-subtitle" id="opening-trainer-sub"></p>
+                  </div>
+                </div>
+                <div class="coach-body" id="opening-trainer-feedback">Jogue os lances corretos no tabuleiro!</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB C: GUIDED ENDGAME & TACTIC DRILLS -->
+        <div id="academy-drills" class="academy-panel">
+          <div class="analysis-layout">
+            <div class="board-section">
+              <div class="board-wrapper">
+                <div class="chessboard-frame">
+                  <div id="drill-board" class="chessboard"></div>
+                  <svg id="drill-overlay" class="board-overlay" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+                </div>
+              </div>
+              <div class="board-controls">
+                <button class="ctrl-btn" id="btn-drill-restart">🔄 Reiniciar Posição</button>
+                <button class="ctrl-btn accent" id="btn-drill-tip">💡 Dica do Coach</button>
+              </div>
+            </div>
+            <div class="analysis-sidebar">
+              <div class="panel-card">
+                <h3>♟️ Finais Essenciais &amp; Padrões Táticos vs Stockfish</h3>
+                <p class="muted-text" style="margin:0.35rem 0 0.65rem;">O Stockfish defenderá com força máxima — prove que você domina a técnica:</p>
+                <select id="guided-drill-select" style="width:100%;"></select>
+              </div>
+              <div class="coach-card">
+                <div class="coach-header">
+                  <div class="coach-badge">🏆</div>
+                  <div>
+                    <h3 id="drill-title">Exercício Guiado</h3>
+                    <p class="coach-subtitle" id="drill-sub"></p>
+                  </div>
+                </div>
+                <div class="coach-body" id="drill-feedback">Execute o plano no tabuleiro!</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB D: SPARRING VS COACH / BOT -->
+        <div id="academy-sparring" class="academy-panel">
+          <div class="analysis-layout">
+            <div class="board-section">
+              <div class="board-wrapper">
+                <div class="chessboard-frame">
+                  <div id="sparring-board" class="chessboard"></div>
+                  <svg id="sparring-overlay" class="board-overlay" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+                </div>
+              </div>
+              <div class="board-controls">
+                <button class="ctrl-btn" id="btn-sparring-start">🆕 Nova Partida</button>
+                <button class="ctrl-btn" id="btn-sparring-undo">↩️ Voltar Lance</button>
+              </div>
+            </div>
+            <div class="analysis-sidebar">
+              <div class="panel-card">
+                <h3>🤖 Sparring Calibrado + Alerta de Capivara</h3>
+                <div class="sparring-controls-grid">
+                  <div>
+                    <label class="muted-text" style="font-size:0.75rem;">Força do Bot:</label>
+                    <select id="sparring-elo-select" style="width:100%; margin-top:0.25rem;">
+                      <option value="450">Iniciante (~450 Elo)</option>
+                      <option value="800">Casual (~800 Elo)</option>
+                      <option value="1000" selected>Clube (~1000 Elo)</option>
+                      <option value="1300">Intermediário (~1300 Elo)</option>
+                      <option value="1750">Avançado (~1750 Elo)</option>
+                      <option value="2150">Mestre (~2150 Elo)</option>
+                      <option value="2500">Stockfish Máximo</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="muted-text" style="font-size:0.75rem;">Sua Cor:</label>
+                    <select id="sparring-color-select" style="width:100%; margin-top:0.25rem;">
+                      <option value="w" selected>⬜ Brancas</option>
+                      <option value="b">⬛ Pretas</option>
+                    </select>
+                  </div>
+                </div>
+                <label class="coach-guard-toggle">
+                  <input type="checkbox" id="sparring-coach-guard" checked />
+                  <span>🛡️ <strong>Alerta de Capivara:</strong> Avisar antes se meu lance entregar vantagem</span>
+                </label>
+              </div>
+
+              <div class="coach-card">
+                <div class="coach-header">
+                  <div class="coach-badge">🤖</div>
+                  <div>
+                    <h3>Coach de Sparring</h3>
+                    <p class="coach-subtitle">Jogue partidas completas ou treine posições específicas das suas partidas</p>
+                  </div>
+                </div>
+                <div class="coach-body" id="sparring-feedback">Arraste ou clique numa peça para começar a jogar!</div>
+              </div>
+
+              <div class="panel-card">
+                <div class="panel-card-header"><span>📜 Lances do Sparring</span></div>
+                <div id="sparring-moves-log" class="muted-text" style="font-family:Consolas, monospace; max-height:140px; overflow-y:auto;">Nenhum lance ainda.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: DASHBOARD & DESENVOLVIMENTO -->
+      <section id="tab-dashboard" class="tab-panel">
+        <div class="page-header">
+          <div>
+            <h2>📊 Central de Desenvolvimento do Jogador</h2>
+            <p>Acompanhe seu Radar de Habilidades, evolução de precisão, gestão de tempo e Plano Semanal personalizado.</p>
+          </div>
+        </div>
+
+        <div class="kpi-grid five-cols">
+          <div class="kpi-card">
+            <span class="kpi-label">Partidas Analisadas</span>
+            <strong class="kpi-value" id="kpi-games">0</strong>
+            <span class="kpi-sub" id="kpi-record">0V / 0E / 0D</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Precisão Média CAPS2</span>
+            <strong class="kpi-value accent-text" id="kpi-accuracy">—%</strong>
+            <span class="kpi-sub">MultiPV + Livro ECO</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Elo Perf. Estimado</span>
+            <strong class="kpi-value" style="color:#fbbf24;" id="kpi-perf-elo">—</strong>
+            <span class="kpi-sub">Qualidade real dos lances</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Capivaras (??) / Jogo</span>
+            <strong class="kpi-value danger-text" id="kpi-blunders-per-game">0.0</strong>
+            <span class="kpi-sub" id="kpi-total-mistakes">0 erros mapeados</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Erros Dominados (SRS)</span>
+            <strong class="kpi-value success-text" id="kpi-puzzles-solved">0 / 0</strong>
+            <span class="kpi-sub">Corrigidos na Academia</span>
+          </div>
+        </div>
+
+        <div class="dashboard-grid" style="margin-bottom: 1.25rem;">
+          <div class="panel-card">
+            <h3>🕸️ Radar de 6 Habilidades</h3>
+            <p class="muted-text">Equilíbrio entre Abertura, Tática, Posicional, Finais, Gestão de Tempo e Defesa:</p>
+            <div style="display:flex; justify-content:center; margin-top:0.5rem;">
+              <canvas id="radar-chart" width="380" height="250"></canvas>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <h3>📈 Evolução da Precisão (%)</h3>
+            <p class="muted-text">Histórico recente das suas partidas (verde = vitória, vermelho = derrota):</p>
+            <div style="display:flex; justify-content:center; margin-top:0.5rem;">
+              <canvas id="trend-chart" width="460" height="235"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-grid" style="margin-bottom: 1.25rem;">
+          <div class="panel-card">
+            <h3>🎯 Padrões de Erro &amp; Gestão de Tempo</h3>
+            <div id="themes-breakdown" style="margin-top:0.65rem; display:flex; flex-direction:column; gap:0.4rem;"></div>
+            <hr class="divider" />
+            <h3>⏱️ Desempenho por Fase</h3>
+            <div id="phase-stats-container" class="phase-stats"></div>
+            <div id="phase-diagnosis" class="diagnosis-callout"></div>
+          </div>
+
+          <div class="panel-card">
+            <h3>🗓️ Plano de Estudos Personalizado</h3>
+            <p class="muted-text">Recomendações automáticas baseadas nos seus erros e tempo de reflexão:</p>
+            <div id="study-plan-list" class="study-plan-list"></div>
+
+            <hr class="divider" />
+            <h3>📚 Desempenho por Abertura</h3>
+            <div class="table-scroll">
+              <table class="stats-table">
+                <thead>
+                  <tr>
+                    <th>Abertura</th>
+                    <th>Jogos</th>
+                    <th>Precisão</th>
+                    <th>Erros (?/??)</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="openings-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Onboarding Welcome Modal -->
+  <div id="onboarding-modal" class="app-modal hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2>♟️ Bem-vindo ao ChessCoach Pro</h2>
+        <button class="btn-link" id="btn-close-onboarding" style="font-size:1.1rem; color:#94a3b8;">✕</button>
+      </div>
+      <p class="muted-text" style="margin-bottom:1rem;">
+        Analisador com Stockfish MultiPV 3, detecção de temas táticos, análise de tempo e Academia de Treinos. Tudo roda 100% no seu navegador!
+      </p>
+      <div class="onboard-form">
+        <label style="font-size:0.8rem; color:var(--text-muted);">Escolha sua plataforma ou crie um perfil local:</label>
+        <div class="search-bar-row">
+          <select id="onboard-platform">
+            <option value="chesscom">Chess.com</option>
+            <option value="lichess">Lichess.org</option>
+            <option value="custom">Perfil Local (PGN)</option>
+          </select>
+          <input type="text" id="onboard-username" placeholder="Seu nome de usuário..." />
+        </div>
+        <div id="onboard-status" class="status-msg"></div>
+        <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.5rem;">
+          <button class="btn-primary" id="btn-onboard-connect" style="flex:1;">🚀 Vincular &amp; Começar</button>
+          <button class="btn-secondary" id="btn-onboard-demo" style="flex:1;">✨ Testar com Partidas Demo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Card & Export Modal -->
+  <div id="share-modal" class="app-modal hidden">
+    <div class="modal-dialog wide">
+      <div class="modal-header">
+        <h2>📤 Compartilhar Análise da Partida</h2>
+        <button class="btn-link" id="btn-close-share" style="font-size:1.1rem; color:#94a3b8;">✕</button>
+      </div>
+      <div id="share-card-preview" style="margin-bottom:0.85rem;"></div>
+      <textarea id="share-summary-text" rows="5" readonly></textarea>
+      <div id="share-copy-status" class="status-msg" style="margin-top:0.35rem;"></div>
+      <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.75rem;">
+        <button class="btn-primary" id="btn-download-card-png">🖼️ Baixar Card PNG</button>
+        <button class="btn-secondary" id="btn-copy-summary-text">📋 Copiar Resumo (WhatsApp/Discord)</button>
+        <button class="btn-secondary" id="btn-download-annotated-pgn">📄 Exportar PGN Comentado</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="store-seed.js"></script>
+  <script src="stockfish-bundle.js"></script>
+  <script src="js/eco-book.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/analyzer.js"></script>
+  <script src="js/board.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/importers.js"></script>
+  <script src="js/trainer.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/share.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "chess-analyzer",
+  "version": "1.0.0",
+  "description": "Analisador de partidas do Chess.com com Stockfish, Treino de Erros e Dashboard de Estatísticas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
