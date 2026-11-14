@@ -426,41 +426,69 @@
       });
     }
 
-    // Play a sparring bot move calibrated to approximate Elo preset
+    // Play a sparring bot move calibrated to approximate Elo preset (150..2500)
     async playBotMove(fen, eloPreset = 1200) {
       await this.ensureReady();
+      const elo = Math.max(100, Math.min(2600, Number(eloPreset) || 1000));
       const chess = new global.Chess(fen);
       const legal = chess.moves({ verbose: true });
       if (!legal.length) return null;
       if (legal.length === 1) return legal[0].from + legal[0].to + (legal[0].promotion || '');
 
-      // Map Elo to Stockfish Skill Level (0..20) + MultiPV candidate pool for low Elos
+      const toUci = (m) => m.from + m.to + (m.promotion || '');
+
+      // Ultra-beginner tier (~150 Elo: "Aprendendo a jogar hoje")
+      // Plays natural beginner moves (pawn pushes, knight/bishop moves, occasional oversights)
+      if (elo <= 220 && Math.random() < 0.62) {
+        const nonCheckMoves = legal.filter((m) => !m.san.includes('+') && !m.san.includes('#'));
+        const quietDevelop = nonCheckMoves.filter((m) => !m.captured && ['p', 'n', 'b'].includes(m.piece));
+        const pool = quietDevelop.length >= 2 ? quietDevelop : nonCheckMoves.length ? nonCheckMoves : legal;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        return toUci(pick);
+      }
+
+      // Map Elo to Stockfish Skill Level (0..20) + MultiPV candidate pool for human-like play
       let skillLevel = 20;
       let depth = 10;
       let multiPv = 1;
       let maxDropCp = 0;
 
-      if (eloPreset <= 500) {
+      if (elo <= 220) {
         skillLevel = 0;
-        depth = 4;
-        multiPv = 4;
-        maxDropCp = 260;
-      } else if (eloPreset <= 900) {
+        depth = 1;
+        multiPv = Math.min(8, legal.length);
+        maxDropCp = 650;
+      } else if (elo <= 350) {
+        skillLevel = 0;
+        depth = 2;
+        multiPv = Math.min(6, legal.length);
+        maxDropCp = 430;
+      } else if (elo <= 550) {
+        skillLevel = 0;
+        depth = 3;
+        multiPv = Math.min(5, legal.length);
+        maxDropCp = 280;
+      } else if (elo <= 850) {
         skillLevel = 2;
+        depth = 5;
+        multiPv = Math.min(4, legal.length);
+        maxDropCp = 175;
+      } else if (elo <= 1150) {
+        skillLevel = 5;
         depth = 6;
-        multiPv = 3;
-        maxDropCp = 140;
-      } else if (eloPreset <= 1300) {
-        skillLevel = 6;
+        multiPv = Math.min(3, legal.length);
+        maxDropCp = 105;
+      } else if (elo <= 1500) {
+        skillLevel = 9;
         depth = 8;
         multiPv = 2;
-        maxDropCp = 65;
-      } else if (eloPreset <= 1750) {
-        skillLevel = 12;
+        maxDropCp = 55;
+      } else if (elo <= 1850) {
+        skillLevel = 14;
         depth = 10;
         multiPv = 1;
-      } else if (eloPreset <= 2150) {
-        skillLevel = 17;
+      } else if (elo <= 2200) {
+        skillLevel = 18;
         depth = 12;
         multiPv = 1;
       } else {
@@ -471,7 +499,7 @@
 
       const res = await this.evaluateFen(fen, {
         depth,
-        movetimeMs: 1400,
+        movetimeMs: 1200,
         multiPv,
         skillLevel,
         tag: 'sparring'
@@ -481,18 +509,29 @@
         const bestSideCp = res.lines[0].sideCp;
         const pool = res.lines.filter((l) => bestSideCp - l.sideCp <= maxDropCp && l.bestMoveUci);
         if (pool.length > 1) {
-          // Weighted random pick favoring stronger lines slightly less at beginner level
           const r = Math.random();
-          if (eloPreset <= 550 && r < 0.55) {
+          if (elo <= 220) {
+            // Prefer non-best candidate lines so the bot feels genuinely ~150 Elo
+            const subPool = pool.slice(1);
+            return subPool[Math.floor(Math.random() * subPool.length)].bestMoveUci;
+          }
+          if (elo <= 350 && r < 0.72) {
+            const subPool = pool.slice(1);
+            return subPool[Math.floor(Math.random() * subPool.length)].bestMoveUci;
+          }
+          if (elo <= 550 && r < 0.58) {
+            return pool[Math.min(pool.length - 1, 1 + Math.floor(Math.random() * (pool.length - 1)))].bestMoveUci;
+          }
+          if (elo <= 850 && r < 0.45) {
             return pool[Math.min(pool.length - 1, Math.floor(Math.random() * pool.length))].bestMoveUci;
           }
-          if (eloPreset <= 1250 && r < 0.35) {
+          if (elo <= 1400 && r < 0.32) {
             return pool[1].bestMoveUci;
           }
         }
       }
 
-      return res.bestMoveUci || (legal[0].from + legal[0].to + (legal[0].promotion || ''));
+      return res.bestMoveUci || toUci(legal[0]);
     }
 
     // Improved alpha-beta depth-2 evaluator if WebWorker fails to load

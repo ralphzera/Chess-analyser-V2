@@ -257,6 +257,9 @@
 
         if (lastMove && (lastMove.from === sqName || lastMove.to === sqName)) {
           sqDiv.classList.add('last-move');
+          if (lastMove.isBot) {
+            sqDiv.classList.add(lastMove.from === sqName ? 'bot-move-from' : 'bot-move-to');
+          }
         }
         if (selectedSquare === sqName) {
           sqDiv.classList.add('selected');
@@ -293,6 +296,12 @@
           bEl.className = `sq-badge ${badge.type}`;
           bEl.textContent = badge.symbol;
           sqDiv.appendChild(bEl);
+        } else if (lastMove && lastMove.isBot && lastMove.to === sqName) {
+          const botTag = document.createElement('div');
+          botTag.className = 'bot-move-tag';
+          botTag.title = 'Último lance da máquina';
+          botTag.textContent = '🤖';
+          sqDiv.appendChild(botTag);
         }
 
         // Pointer drag-and-drop + click support
@@ -374,9 +383,65 @@
     }
   }
 
+  // Smoothly animate a piece gliding from `fromSq` to `toSq` before re-rendering the board
+  function animateMove(containerId, fromSq, toSq, durationMs = 340) {
+    return new Promise((resolve) => {
+      try {
+        const container = document.getElementById(containerId);
+        if (!container || !fromSq || !toSq) {
+          resolve();
+          return;
+        }
+        const fromEl = container.querySelector(`[data-square="${fromSq}"]`);
+        const toEl = container.querySelector(`[data-square="${toSq}"]`);
+        const pieceSvg = fromEl ? fromEl.querySelector('.piece-svg') : null;
+        if (!fromEl || !toEl || !pieceSvg) {
+          resolve();
+          return;
+        }
+        const fromRect = fromEl.getBoundingClientRect();
+        const toRect = toEl.getBoundingClientRect();
+        if (fromRect.width === 0 || toRect.width === 0) {
+          resolve();
+          return;
+        }
+
+        fromEl.classList.add('bot-move-from');
+        toEl.classList.add('bot-move-target-preview');
+
+        const ghost = pieceSvg.cloneNode(true);
+        ghost.classList.add('bot-glide-piece');
+        ghost.style.position = 'fixed';
+        ghost.style.left = `${fromRect.left}px`;
+        ghost.style.top = `${fromRect.top}px`;
+        ghost.style.width = `${fromRect.width}px`;
+        ghost.style.height = `${fromRect.height}px`;
+        ghost.style.transition = `transform ${durationMs}ms cubic-bezier(0.22, 1, 0.36, 1), filter ${durationMs}ms ease`;
+        document.body.appendChild(ghost);
+
+        pieceSvg.style.opacity = '0.12';
+        // Force reflow so transition triggers cleanly
+        void ghost.getBoundingClientRect();
+
+        const dx = toRect.left - fromRect.left;
+        const dy = toRect.top - fromRect.top;
+        ghost.style.transform = `translate(${dx}px, ${dy}px) scale(1.08)`;
+
+        setTimeout(() => {
+          if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+          if (pieceSvg) pieceSvg.style.opacity = '';
+          resolve();
+        }, durationMs);
+      } catch (_) {
+        resolve();
+      }
+    });
+  }
+
   CC.Board = {
     PIECE_SVGS,
     renderChessboard,
+    animateMove,
     askPromotionChoice,
     playSound,
     playMoveObjSound,

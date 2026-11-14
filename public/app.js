@@ -124,6 +124,9 @@
     }
 
     CC.Dashboard.renderDashboard(app);
+    if (app.academy && typeof app.academy.syncSparringEloWithProfile === 'function') {
+      app.academy.syncSparringEloWithProfile();
+    }
   }
 
   function renderEmptyAnalysisBoard() {

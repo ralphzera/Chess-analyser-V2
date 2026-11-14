@@ -483,17 +483,38 @@
             <div class="analysis-sidebar">
               <div class="panel-card">
                 <h3>🤖 Sparring Calibrado + Alerta de Capivara</h3>
+                <div class="sparring-adaptive-box" id="sparring-adaptive-box">
+                  <div class="sparring-adaptive-header">
+                    <span id="sparring-account-info">🎯 Adaptado ao seu nível</span>
+                    <strong id="sparring-active-elo-pill" class="elo-active-pill">~400 Elo</strong>
+                  </div>
+                  <div class="sparring-tier-row">
+                    <button type="button" class="sparring-tier-btn" id="btn-tier-below" data-tier="below" title="Jogar contra bot abaixo do seu rating para ganhar confiança">
+                      🟢 Facilitar <small id="tier-below-label">(-200)</small>
+                    </button>
+                    <button type="button" class="sparring-tier-btn active" id="btn-tier-match" data-tier="match" title="Jogar no nível exato da sua conta cadastrada">
+                      🎯 Meu Nível <small id="tier-match-label">(Conta)</small>
+                    </button>
+                    <button type="button" class="sparring-tier-btn" id="btn-tier-above" data-tier="above" title="Jogar contra bot acima do seu rating para se desafiar">
+                      🔥 Desafiar <small id="tier-above-label">(+200)</small>
+                    </button>
+                  </div>
+                </div>
                 <div class="sparring-controls-grid">
                   <div>
-                    <label class="muted-text" style="font-size:0.75rem;">Força do Bot:</label>
+                    <label class="muted-text" style="font-size:0.75rem;">Ou escolha o Elo manualmente:</label>
                     <select id="sparring-elo-select" style="width:100%; margin-top:0.25rem;">
-                      <option value="450">Iniciante (~450 Elo)</option>
-                      <option value="800">Casual (~800 Elo)</option>
-                      <option value="1000" selected>Clube (~1000 Elo)</option>
-                      <option value="1300">Intermediário (~1300 Elo)</option>
-                      <option value="1750">Avançado (~1750 Elo)</option>
-                      <option value="2150">Mestre (~2150 Elo)</option>
-                      <option value="2500">Stockfish Máximo</option>
+                      <option value="150">🌱 Aprendendo Hoje (~150 Elo)</option>
+                      <option value="250">🐣 Iniciante Absoluto (~250 Elo)</option>
+                      <option value="400">♟️ Iniciante (~400 Elo)</option>
+                      <option value="600">🙂 Casual (~600 Elo)</option>
+                      <option value="800">⚡ Recreacional (~800 Elo)</option>
+                      <option value="1000" selected>🛡️ Clube Iniciante (~1000 Elo)</option>
+                      <option value="1300">⚔️ Intermediário (~1300 Elo)</option>
+                      <option value="1600">🏅 Clube Forte (~1600 Elo)</option>
+                      <option value="1900">🔥 Avançado (~1900 Elo)</option>
+                      <option value="2200">👑 Mestre (~2200 Elo)</option>
+                      <option value="2500">🤖 Stockfish Máximo (2500+)</option>
                     </select>
                   </div>
                   <div>

@@ -151,7 +151,8 @@
       // Sparring state
       this.sparringChess = new global.Chess();
       this.sparringHeroColor = 'w';
-      this.sparringElo = 1000;
+      this.sparringElo = 400;
+      this.sparringTier = 'match'; // 'below' | 'match' | 'above' | 'manual'
       this.sparringCoachGuard = true;
       this.sparringSelectedSq = null;
       this.sparringBusy = false;
@@ -266,8 +267,26 @@
       document.getElementById('btn-sparring-start')?.addEventListener('click', () => {
         this.startSparringFromFen(new global.Chess().fen());
       });
+      document.querySelectorAll('.sparring-tier-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          this.sparringTier = btn.dataset.tier || 'match';
+          this.syncSparringEloWithProfile();
+          document.getElementById('sparring-feedback').innerHTML = `🎯 Força do Bot ajustada para <strong>~${this.sparringElo} Elo</strong> (${
+            this.sparringTier === 'below'
+              ? 'Modo Facilitado — abaixo do seu nível'
+              : this.sparringTier === 'above'
+              ? 'Modo Desafio — acima do seu nível'
+              : 'Calibrado com o seu nível'
+          }).`;
+        });
+      });
       document.getElementById('sparring-elo-select')?.addEventListener('change', (e) => {
-        this.sparringElo = parseInt(e.target.value, 10) || 1000;
+        this.sparringElo = parseInt(e.target.value, 10) || 400;
+        this.sparringTier = 'manual';
+        document.querySelectorAll('.sparring-tier-btn').forEach((b) => b.classList.remove('active'));
+        const activePill = document.getElementById('sparring-active-elo-pill');
+        if (activePill) activePill.textContent = `~${this.sparringElo} Elo`;
+        document.getElementById('sparring-feedback').innerHTML = `🎚️ Bot definido manualmente em <strong>~${this.sparringElo} Elo</strong>.`;
       });
       document.getElementById('sparring-color-select')?.addEventListener('change', (e) => {
         this.sparringHeroColor = e.target.value;
@@ -298,7 +317,10 @@
       if (subTab === 'mistakes') this.renderMistakesView();
       else if (subTab === 'openings') this.renderOpeningsView();
       else if (subTab === 'drills') this.renderDrillsView();
-      else if (subTab === 'sparring') this.renderSparringBoard();
+      else if (subTab === 'sparring') {
+        this.syncSparringEloWithProfile();
+        this.renderSparringBoard();
+      }
     }
 
     render() {
@@ -602,14 +624,19 @@
       if (this.openingChess.turn() !== drill.side) {
         const oppSan = drill.moves[this.openingMoveIdx];
         this._renderOpeningBoard();
-        setTimeout(() => {
+        setTimeout(async () => {
+          const probe = new global.Chess(this.openingChess.fen());
+          const previewMv = probe.move(oppSan);
+          if (previewMv && CC.Board.animateMove) {
+            await CC.Board.animateMove('opening-board', previewMv.from, previewMv.to, 320);
+          }
           const mv = this.openingChess.move(oppSan);
           if (mv) {
             CC.Board.playMoveObjSound(mv);
             this.openingMoveIdx++;
             this._advanceOpeningOpponent();
           }
-        }, 320);
+        }, 420);
       } else {
         this._renderOpeningBoard();
       }
@@ -643,7 +670,7 @@
         overlayId: 'opening-overlay',
         fen: chess.fen(),
         flipped: drill.side === 'b',
-        lastMove: last ? { from: last.from, to: last.to } : null,
+        lastMove: last ? { from: last.from, to: last.to, isBot: last.color !== drill.side } : null,
         selectedSquare: this.openingSelectedSq,
         legalTargets,
         arrows,
@@ -725,7 +752,7 @@
       this._renderDrillBoard();
     }
 
-    _renderDrillBoard() {
+    _renderDrillBoard(arrows = []) {
       const d = GUIDED_DRILLS[this.currentDrillIdx];
       const chess = this.drillChess;
       if (!d || !chess) return;
@@ -735,15 +762,23 @@
         : [];
       const hist = chess.history({ verbose: true });
       const last = hist.length ? hist[hist.length - 1] : null;
+      const isBotLast = Boolean(last && last.color !== d.heroColor);
+      const boardArrows =
+        arrows && arrows.length
+          ? arrows
+          : isBotLast
+          ? [{ from: last.from, to: last.to, color: 'rgba(56, 189, 248, 0.72)' }]
+          : [];
 
       CC.Board.renderChessboard({
         containerId: 'drill-board',
         overlayId: 'drill-overlay',
         fen: chess.fen(),
         flipped: d.heroColor === 'b',
-        lastMove: last ? { from: last.from, to: last.to } : null,
+        lastMove: last ? { from: last.from, to: last.to, isBot: isBotLast } : null,
         selectedSquare: this.drillSelectedSq,
         legalTargets,
+        arrows: boardArrows,
         onSquareClick: (sq) => {
           if (this.drillBusy || chess.turn() !== d.heroColor || chess.game_over()) return;
           if (this.drillSelectedSq && this.drillSelectedSq !== sq) {
@@ -786,26 +821,36 @@
           return;
         }
 
-        // Let Stockfish reply strongly
+        // Let Stockfish reply strongly with smooth pacing & animation
         this.drillBusy = true;
-        document.getElementById('drill-feedback').innerHTML = `⏳ Stockfish calculando defesa...`;
-        const replyUci = await this.app.engine.playBotMove(chess.fen(), 2300);
+        document.getElementById('drill-feedback').innerHTML = `<span class="bot-thinking-inline"><span class="bot-pulse-dot"></span> Stockfish calculando defesa...</span>`;
+        const [replyUci] = await Promise.all([
+          this.app.engine.playBotMove(chess.fen(), 2300),
+          new Promise((r) => setTimeout(r, 450))
+        ]);
         this.drillBusy = false;
 
         if (replyUci) {
+          const fromSq = replyUci.slice(0, 2);
+          const toSq = replyUci.slice(2, 4);
+          if (CC.Board.animateMove) {
+            await CC.Board.animateMove('drill-board', fromSq, toSq, 340);
+          }
           const rm = chess.move({
-            from: replyUci.slice(0, 2),
-            to: replyUci.slice(2, 4),
+            from: fromSq,
+            to: toSq,
             promotion: replyUci.length > 4 ? replyUci[4] : 'q'
           });
-          if (rm) CC.Board.playMoveObjSound(rm);
+          if (rm) {
+            CC.Board.playMoveObjSound(rm);
+            const pName = (CC.Analyzer && CC.Analyzer.PIECE_NAMES_PT && CC.Analyzer.PIECE_NAMES_PT[rm.piece]) || 'Peça';
+            document.getElementById('drill-feedback').innerHTML = `🤖 <strong>Stockfish jogou <code>${rm.san}</code></strong> (${pName} de <code>${fromSq.toUpperCase()}</code> → <code>${toSq.toUpperCase()}</code>). Sua vez!`;
+          }
         }
         this._renderDrillBoard();
 
         if (chess.game_over()) {
           this._handleDrillGameOver(d, chess);
-        } else {
-          document.getElementById('drill-feedback').innerHTML = `Sua vez! Continue o plano.`;
         }
       };
 
@@ -839,7 +884,86 @@
     }
 
     // ==================== 4. SPARRING VS COACH / STOCKFISH ====================
+    getUserAccountBaseElo() {
+      const prof = this.app.getProfile();
+      if (prof && prof.stats) {
+        const rating = prof.stats.rapid || prof.stats.blitz || prof.stats.bullet;
+        if (rating && !isNaN(rating)) {
+          return {
+            elo: Math.max(150, Math.min(2500, Math.round(Number(rating)))),
+            source: `Conta @${prof.username || prof.name} (${rating} Elo)`
+          };
+        }
+      }
+      if (prof && prof.analyzedGames) {
+        const games = Object.values(prof.analyzedGames).filter((g) => !String(g.id || '').startsWith('demo-'));
+        for (const g of games) {
+          const r = g.heroColor === 'b' ? parseInt(g.blackRating, 10) : parseInt(g.whiteRating, 10);
+          if (r && !isNaN(r) && r >= 100) {
+            return {
+              elo: Math.max(150, Math.min(2500, r)),
+              source: `Partidas de ${prof.name} (~${r} Elo)`
+            };
+          }
+        }
+      }
+      return {
+        elo: 400,
+        source: prof && prof.username ? `Perfil @${prof.username} (Base 400 Elo)` : 'Base Iniciante (vincule Chess.com p/ calibrar)'
+      };
+    }
+
+    syncSparringEloWithProfile() {
+      const { elo: baseElo, source } = this.getUserAccountBaseElo();
+      const step = baseElo <= 500 ? 150 : 200;
+      const belowElo = Math.max(150, baseElo - step);
+      const matchElo = Math.max(150, Math.min(2500, baseElo));
+      const aboveElo = Math.min(2500, baseElo + 200);
+
+      const infoEl = document.getElementById('sparring-account-info');
+      if (infoEl) infoEl.textContent = `🎯 ${source}`;
+
+      const belowLbl = document.getElementById('tier-below-label');
+      const matchLbl = document.getElementById('tier-match-label');
+      const aboveLbl = document.getElementById('tier-above-label');
+      if (belowLbl) belowLbl.textContent = `(~${belowElo})`;
+      if (matchLbl) matchLbl.textContent = `(~${matchElo})`;
+      if (aboveLbl) aboveLbl.textContent = `(~${aboveElo})`;
+
+      if (this.sparringTier !== 'manual') {
+        this.sparringElo =
+          this.sparringTier === 'below' ? belowElo : this.sparringTier === 'above' ? aboveElo : matchElo;
+
+        document.querySelectorAll('.sparring-tier-btn').forEach((btn) => {
+          btn.classList.toggle('active', btn.dataset.tier === this.sparringTier);
+        });
+
+        const sel = document.getElementById('sparring-elo-select');
+        if (sel) {
+          let customOpt = document.getElementById('sparring-opt-adaptive');
+          if (!customOpt) {
+            customOpt = document.createElement('option');
+            customOpt.id = 'sparring-opt-adaptive';
+            sel.insertBefore(customOpt, sel.firstChild);
+          }
+          const tierName =
+            this.sparringTier === 'below'
+              ? '🟢 Facilitado'
+              : this.sparringTier === 'above'
+              ? '🔥 Desafio'
+              : '🎯 Seu Nível';
+          customOpt.value = String(this.sparringElo);
+          customOpt.textContent = `${tierName} (~${this.sparringElo} Elo)`;
+          sel.value = String(this.sparringElo);
+        }
+      }
+
+      const activePill = document.getElementById('sparring-active-elo-pill');
+      if (activePill) activePill.textContent = `~${this.sparringElo} Elo`;
+    }
+
     startSparringFromFen(fen, heroColor = null) {
+      this.syncSparringEloWithProfile();
       this.sparringStartFen = fen || new global.Chess().fen();
       this.sparringChess = new global.Chess(this.sparringStartFen);
       if (heroColor) {
@@ -853,7 +977,7 @@
 
       document.getElementById('sparring-feedback').innerHTML = `Partida iniciada! Você joga de ${
         this.sparringHeroColor === 'w' ? 'Brancas ⬜' : 'Pretas ⬛'
-      } contra Bot ~${this.sparringElo} Elo.`;
+      } contra Bot <strong>~${this.sparringElo} Elo</strong>.`;
 
       this.renderSparringBoard();
       if (this.sparringChess.turn() !== this.sparringHeroColor) {
@@ -868,16 +992,23 @@
         : [];
       const hist = chess.history({ verbose: true });
       const last = hist.length ? hist[hist.length - 1] : null;
+      const isBotLast = Boolean(last && last.color !== this.sparringHeroColor);
+      const boardArrows =
+        arrows && arrows.length
+          ? arrows
+          : isBotLast
+          ? [{ from: last.from, to: last.to, color: 'rgba(56, 189, 248, 0.78)' }]
+          : [];
 
       CC.Board.renderChessboard({
         containerId: 'sparring-board',
         overlayId: 'sparring-overlay',
         fen: chess.fen(),
         flipped: this.sparringHeroColor === 'b',
-        lastMove: last ? { from: last.from, to: last.to } : null,
+        lastMove: last ? { from: last.from, to: last.to, isBot: isBotLast } : null,
         selectedSquare: this.sparringSelectedSq,
         legalTargets,
-        arrows,
+        arrows: boardArrows,
         onSquareClick: (sq) => {
           if (this.sparringBusy || chess.turn() !== this.sparringHeroColor || chess.game_over()) return;
           if (this.sparringSelectedSq && this.sparringSelectedSq !== sq) {
@@ -963,21 +1094,31 @@
       const chess = this.sparringChess;
       if (chess.game_over()) return;
       this.sparringBusy = true;
-      document.getElementById('sparring-feedback').innerHTML = `🤖 Bot (~${this.sparringElo} Elo) pensando...`;
+      document.getElementById('sparring-feedback').innerHTML = `<span class="bot-thinking-inline"><span class="bot-pulse-dot"></span> 🤖 Bot (~${this.sparringElo} Elo) pensando no lance...</span>`;
 
-      const uci = await this.app.engine.playBotMove(chess.fen(), this.sparringElo);
+      // Ensure a comfortable minimum visual pause (480ms) so the player clearly sees their own move before the bot glides
+      const [uci] = await Promise.all([
+        this.app.engine.playBotMove(chess.fen(), this.sparringElo),
+        new Promise((r) => setTimeout(r, 480))
+      ]);
       this.sparringBusy = false;
 
       if (uci) {
+        const fromSq = uci.slice(0, 2);
+        const toSq = uci.slice(2, 4);
+        if (CC.Board.animateMove) {
+          await CC.Board.animateMove('sparring-board', fromSq, toSq, 360);
+        }
         const mv = chess.move({
-          from: uci.slice(0, 2),
-          to: uci.slice(2, 4),
+          from: fromSq,
+          to: toSq,
           promotion: uci.length > 4 ? uci[4] : 'q'
         });
         if (mv) {
           CC.Board.playMoveObjSound(mv);
           this.sparringMoves.push(mv.san);
-          document.getElementById('sparring-feedback').innerHTML = `Bot jogou <strong>${mv.san}</strong>. Sua vez!`;
+          const pName = (CC.Analyzer && CC.Analyzer.PIECE_NAMES_PT && CC.Analyzer.PIECE_NAMES_PT[mv.piece]) || 'Peça';
+          document.getElementById('sparring-feedback').innerHTML = `🤖 <strong>Lance do Bot (~${this.sparringElo} Elo):</strong> moveu <strong>${pName}</strong> de <code>${fromSq.toUpperCase()}</code> → <code>${toSq.toUpperCase()}</code> (<strong>${mv.san}</strong>). Sua vez!`;
         }
       }
       this.renderSparringBoard();
